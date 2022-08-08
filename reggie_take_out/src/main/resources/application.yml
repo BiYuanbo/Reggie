@@ -14,9 +14,8 @@ spring:
     image:
       location: banner.txt
   redis:
-    host: 192.168.107.129
+    host: 127.0.0.1
     port: 6379
-    password: 020101
     database: 0
 
 mybatis-plus:

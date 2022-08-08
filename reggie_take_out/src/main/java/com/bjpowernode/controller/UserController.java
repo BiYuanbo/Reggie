@@ -7,12 +7,14 @@ import com.bjpowernode.service.UserService;
 import com.bjpowernode.utils.ValidateCodeUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @RestController
@@ -20,6 +22,9 @@ import java.util.Map;
 public class UserController {
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private RedisTemplate redisTemplate;
 
     /**
      * 发送手机验证码
@@ -39,7 +44,10 @@ public class UserController {
             log.info("code={}",code);
 
             //需要将生成的验证码保存到session
-            session.setAttribute(phone,code);
+            //session.setAttribute(phone,code);
+
+            //将生成的验证码缓存到redis,并设置有效期为5分钟
+            redisTemplate.opsForValue().set(phone,code,5, TimeUnit.MINUTES);
 
             return R.success("手机验证码发送成功");
         }
@@ -54,7 +62,6 @@ public class UserController {
      */
     @PostMapping("/login")
     public R<User> login(HttpSession session, @RequestBody Map map){
-        System.out.println(map.toString());
 
         //获取手机号
         String phone = map.get("phone").toString();
@@ -63,7 +70,10 @@ public class UserController {
         String code = map.get("code").toString();
 
         //从Session中获取保存的验证码(页面提交的验证码和Session中保存的验证码比对)
-        Object codeInSession = session.getAttribute(phone);
+        //Object codeInSession = session.getAttribute(phone);
+
+        //从redis中获取缓存的验证码
+        Object codeInSession = redisTemplate.opsForValue().get(phone);
 
         //进行验证码的比对
         if (codeInSession!=null&&codeInSession.equals(code)){
@@ -82,6 +92,9 @@ public class UserController {
             }
 
             session.setAttribute("user",user.getId());
+
+            //如果用户登录成，删除Redis中给缓存的验证码
+            redisTemplate.delete(phone);
 
             return R.success(user);
         }
